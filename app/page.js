@@ -1,66 +1,75 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Navbar from '../components/Navbar';
+import Scanner from '../components/Scanner';
 
 export default function Home() {
+  const router = useRouter();
+  const [isUploading, setIsUploading] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleCapture = async (imageData) => {
+    setIsUploading(true);
+
+    try {
+      const response = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: imageData }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create scan');
+      }
+
+      const data = await response.json();
+      showToast('Seed uploaded! AI is analyzing...', 'success');
+
+      // Redirect to library after a short delay
+      setTimeout(() => {
+        router.push('/library');
+      }, 1000);
+
+    } catch (error) {
+      console.error('Upload error:', error);
+      showToast('Failed to upload. Please try again.', 'error');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.js file.</h1>
+    <>
+      <Navbar />
+      <main>
+        <section className="hero">
+          <div className="hero-badge">
+            🤖 AI-Powered Analysis
+          </div>
+          <h1>
+            Identify Any <span className="gradient-text">Seed</span> Instantly
+          </h1>
           <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
+            Scan a seed with your camera and get detailed planting guides,
+            care instructions, and discover the beautiful plant it will grow into.
           </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+        </section>
+
+        <Scanner onCapture={handleCapture} isUploading={isUploading} />
       </main>
-    </div>
+
+      {toast && (
+        <div className={`toast ${toast.type}`}>
+          {toast.type === 'success' ? '✅' : '❌'} {toast.message}
+        </div>
+      )}
+    </>
   );
 }
