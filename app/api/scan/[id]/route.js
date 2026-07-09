@@ -124,6 +124,27 @@ async function rescanAndUpdate(scanId, imageUrl) {
     const seedImages = await getWikipediaSeedImages(result.scientificName, result.commonName);
     const searchQuery = result.flowerSearchQuery || result.commonName || 'flower';
 
+    // Prevent duplicate seed entries in the library during rescan
+    if (result.identified && result.scientificName) {
+      try {
+        const oldScan = await Scan.findOne({
+          _id: { $ne: scanId },
+          status: 'complete',
+          'result.scientificName': result.scientificName,
+        });
+
+        if (oldScan) {
+          console.log(`[PATCH /api/scan/:id] Found duplicate scan for "${result.scientificName}" (ID: ${oldScan._id}). Cleaning up old record to avoid duplicates...`);
+          await Scan.findByIdAndDelete(oldScan._id);
+          if (oldScan.cloudinaryId) {
+            await deleteImage(oldScan.cloudinaryId);
+          }
+        }
+      } catch (dupError) {
+        console.error('[PATCH /api/scan/:id] Error during duplicate cleanup:', dupError);
+      }
+    }
+
     await Scan.findByIdAndUpdate(scanId, {
       status: 'complete',
       result: {

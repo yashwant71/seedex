@@ -1,6 +1,6 @@
 import { NextResponse, after } from 'next/server';
 import connectDB from '../../../lib/mongodb';
-import { uploadImage } from '../../../lib/cloudinary';
+import { uploadImage, deleteImage } from '../../../lib/cloudinary';
 import { analyzeSeed } from '../../../lib/openrouter';
 import { getWikipediaImages, getWikipediaSeedImages } from '../../../lib/imageSearch';
 import Scan from '../../../models/Scan';
@@ -70,6 +70,27 @@ async function analyzeAndUpdate(scanId, imageUrl) {
 
     // Build a Google Images search URL for fallback/detail button
     const searchQuery = result.flowerSearchQuery || result.commonName || 'flower';
+
+    // Prevent duplicate seed entries in the library
+    if (result.identified && result.scientificName) {
+      try {
+        const oldScan = await Scan.findOne({
+          _id: { $ne: scanId },
+          status: 'complete',
+          'result.scientificName': result.scientificName,
+        });
+
+        if (oldScan) {
+          console.log(`[POST /api/scan] Found duplicate scan for "${result.scientificName}" (ID: ${oldScan._id}). Cleaning up old record to avoid duplicates...`);
+          await Scan.findByIdAndDelete(oldScan._id);
+          if (oldScan.cloudinaryId) {
+            await deleteImage(oldScan.cloudinaryId);
+          }
+        }
+      } catch (dupError) {
+        console.error('[POST /api/scan] Error during duplicate cleanup:', dupError);
+      }
+    }
 
     // Update the scan record
     await Scan.findByIdAndUpdate(scanId, {

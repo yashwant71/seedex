@@ -50,7 +50,29 @@ export default function ScanDetail({ params }) {
     }
   }, [scan?.status, fetchScan]);
 
+  const checkAdminPassword = () => {
+    // Check localStorage first
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('admin_password');
+      if (saved === 'Yash123@') {
+        return true;
+      }
+    }
+
+    const input = prompt('Enter admin password to proceed:');
+    if (input === 'Yash123@') {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('admin_password', 'Yash123@');
+      }
+      return true;
+    } else {
+      alert('Incorrect password. Access denied.');
+      return false;
+    }
+  };
+
   const handleRescan = async () => {
+    if (!checkAdminPassword()) return;
     setRescanning(true);
     try {
       const response = await fetch(`/api/scan/${id}`, {
@@ -71,6 +93,7 @@ export default function ScanDetail({ params }) {
   };
 
   const handleDelete = async () => {
+    if (!checkAdminPassword()) return;
     if (!confirm('Delete this scan? This cannot be undone.')) return;
 
     setDeleting(true);
