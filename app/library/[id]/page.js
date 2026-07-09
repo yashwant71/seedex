@@ -154,10 +154,23 @@ export default function ScanDetail({ params }) {
     if (scan.result.flowerImageUrl) {
       carouselImages.push({ url: scan.result.flowerImageUrl, label: '🌸 Grown Plant' });
     }
+    // Reference seed images from the web
+    if (scan.result.seedImageUrls && Array.isArray(scan.result.seedImageUrls)) {
+      scan.result.seedImageUrls.slice(0, 3).forEach((url) => {
+        if (url !== scan.imageUrl) {
+          carouselImages.push({ url, label: '🌱 Seed Reference' });
+        }
+      });
+    }
+    // Other plant/flower images
     if (scan.result.flowerImageUrls && Array.isArray(scan.result.flowerImageUrls)) {
       scan.result.flowerImageUrls.forEach((url) => {
         // Skip duplicate of main flower or seed image
-        if (url !== scan.result.flowerImageUrl && url !== scan.imageUrl) {
+        if (
+          url !== scan.result.flowerImageUrl && 
+          url !== scan.imageUrl && 
+          (!scan.result.seedImageUrls || !scan.result.seedImageUrls.includes(url))
+        ) {
           carouselImages.push({ url, label: '🌸 Plant Photo' });
         }
       });

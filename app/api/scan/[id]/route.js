@@ -2,7 +2,7 @@ import { NextResponse, after } from 'next/server';
 import connectDB from '../../../../lib/mongodb';
 import { deleteImage } from '../../../../lib/cloudinary';
 import { analyzeSeed } from '../../../../lib/openrouter';
-import { getWikipediaImages } from '../../../../lib/imageSearch';
+import { getWikipediaImages, getWikipediaSeedImages } from '../../../../lib/imageSearch';
 import Scan from '../../../../models/Scan';
 
 // GET single scan
@@ -121,6 +121,7 @@ async function rescanAndUpdate(scanId, imageUrl) {
 
     const wikiImages = await getWikipediaImages(result.scientificName, result.commonName);
     const flowerImageUrl = wikiImages.length > 0 ? wikiImages[0] : '';
+    const seedImages = await getWikipediaSeedImages(result.scientificName, result.commonName);
     const searchQuery = result.flowerSearchQuery || result.commonName || 'flower';
 
     await Scan.findByIdAndUpdate(scanId, {
@@ -133,6 +134,7 @@ async function rescanAndUpdate(scanId, imageUrl) {
         description: result.description || '',
         flowerImageUrl: flowerImageUrl,
         flowerImageUrls: wikiImages,
+        seedImageUrls: seedImages,
         flowerSearchQuery: searchQuery,
         planting: {
           bestSeason: result.planting?.bestSeason || '',

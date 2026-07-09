@@ -26,6 +26,7 @@ const ScanSchema = new mongoose.Schema({
     description: { type: String, default: '' },
     flowerImageUrl: { type: String, default: '' },
     flowerImageUrls: [{ type: String }],
+    seedImageUrls: [{ type: String }],
     flowerSearchQuery: { type: String, default: '' },
     planting: {
       bestSeason: { type: String, default: '' },

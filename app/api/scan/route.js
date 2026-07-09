@@ -2,7 +2,7 @@ import { NextResponse, after } from 'next/server';
 import connectDB from '../../../lib/mongodb';
 import { uploadImage } from '../../../lib/cloudinary';
 import { analyzeSeed } from '../../../lib/openrouter';
-import { getWikipediaImages } from '../../../lib/imageSearch';
+import { getWikipediaImages, getWikipediaSeedImages } from '../../../lib/imageSearch';
 import Scan from '../../../models/Scan';
 
 export async function POST(request) {
@@ -65,6 +65,9 @@ async function analyzeAndUpdate(scanId, imageUrl) {
     const wikiImages = await getWikipediaImages(result.scientificName, result.commonName);
     const flowerImageUrl = wikiImages.length > 0 ? wikiImages[0] : '';
 
+    // Fetch reference seed images from Wikipedia
+    const seedImages = await getWikipediaSeedImages(result.scientificName, result.commonName);
+
     // Build a Google Images search URL for fallback/detail button
     const searchQuery = result.flowerSearchQuery || result.commonName || 'flower';
 
@@ -79,6 +82,7 @@ async function analyzeAndUpdate(scanId, imageUrl) {
         description: result.description || '',
         flowerImageUrl: flowerImageUrl,
         flowerImageUrls: wikiImages,
+        seedImageUrls: seedImages,
         flowerSearchQuery: searchQuery,
         planting: {
           bestSeason: result.planting?.bestSeason || '',
