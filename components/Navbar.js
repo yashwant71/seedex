@@ -10,7 +10,13 @@ export default function Navbar() {
     <nav className="navbar">
       <Link href="/" className="navbar-brand">
         <div className="logo-icon">🌱</div>
-        Seedex
+        <span>Seedex</span>
+        {pathname.startsWith('/library') && (
+          <>
+            <span style={{ margin: '0 8px', opacity: 0.4, fontSize: '0.9rem', fontWeight: 300 }}>&gt;</span>
+            <span style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Library</span>
+          </>
+        )}
       </Link>
 
       <div className="navbar-links">
