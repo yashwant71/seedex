@@ -5,10 +5,16 @@ import Link from 'next/link';
 import Navbar from '../../components/Navbar';
 import ScanCard from '../../components/ScanCard';
 
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
 export default function Library() {
   const [scans, setScans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('all');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   const [showBloom, setShowBloom] = useState(false);
 
@@ -42,15 +48,31 @@ export default function Library() {
     }
   }, [scans, fetchScans]);
 
-  // Filter scans based on search query
+  // Filter scans based on search query and month
   const filteredScans = scans.filter((scan) => {
     const term = searchQuery.toLowerCase();
     const commonName = scan.result?.commonName || '';
     const scientificName = scan.result?.scientificName || '';
-    return (
+    
+    const matchesSearch = 
       commonName.toLowerCase().includes(term) ||
-      scientificName.toLowerCase().includes(term)
-    );
+      scientificName.toLowerCase().includes(term);
+
+    if (!matchesSearch) return false;
+
+    if (selectedMonth !== 'all') {
+      if (scan.status !== 'complete' || !scan.result) return false;
+      const spectrum = scan.result.planting?.monthlyPlantingSpectrum || [];
+      const monthData = spectrum.find(
+        (m) => m.month?.toLowerCase() === selectedMonth.toLowerCase()
+      );
+      if (!monthData) return false;
+      
+      const rating = monthData.rating?.toLowerCase();
+      if (rating === 'avoid') return false;
+    }
+
+    return true;
   });
 
   return (
@@ -68,26 +90,70 @@ export default function Library() {
             marginBottom: '32px',
             flexWrap: 'wrap'
           }}>
-            {/* Search Input */}
-            <div style={{ position: 'relative', flex: '1 1 280px' }}>
-              <input
-                type="text"
-                placeholder="🔍 Search scans by name..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 16px',
-                  borderRadius: 'var(--radius-full)',
-                  border: '1px solid var(--border)',
-                  background: 'var(--bg-card)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.85rem',
-                  outline: 'none',
-                  transition: 'all var(--transition-fast)'
-                }}
-                className="search-input"
-              />
+            {/* Search and Month Filter Container */}
+            <div style={{ display: 'flex', gap: '12px', flex: '1 1 450px', flexWrap: 'wrap' }}>
+              {/* Search Input */}
+              <div style={{ position: 'relative', flex: '1 1 250px' }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Search scans by name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    borderRadius: 'var(--radius-full)',
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.85rem',
+                    outline: 'none',
+                    transition: 'all var(--transition-fast)'
+                  }}
+                  className="search-input"
+                />
+              </div>
+
+              {/* Month Dropdown Filter */}
+              <div style={{ position: 'relative', flex: '0 1 200px' }}>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 32px 10px 16px',
+                    borderRadius: 'var(--radius-full)',
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.85rem',
+                    outline: 'none',
+                    cursor: 'pointer',
+                    transition: 'all var(--transition-fast)',
+                    appearance: 'none',
+                    WebkitAppearance: 'none'
+                  }}
+                  className="select-filter"
+                >
+                  <option value="all">📅 All Planting Months</option>
+                  {MONTHS.map((m) => (
+                    <option key={m} value={m.toLowerCase()}>
+                      🌱 Plant in {m}
+                    </option>
+                  ))}
+                </select>
+                <div style={{
+                  position: 'absolute',
+                  right: '16px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  pointerEvents: 'none',
+                  fontSize: '0.65rem',
+                  color: 'var(--text-muted)'
+                }}>
+                  ▼
+                </div>
+              </div>
             </div>
 
             {/* Controls Right Grid/List + New Scan */}
