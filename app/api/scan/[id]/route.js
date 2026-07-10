@@ -90,12 +90,12 @@ export async function PATCH(request, { params }) {
     }
 
     if (body.action === 'fetchImages') {
-      if (!scan.result || !scan.result.scientificName) {
+      if (!scan.result || (!scan.result.scientificName && !scan.result.commonName)) {
         return NextResponse.json({ error: 'Scan has no identified plant details yet' }, { status: 400 });
       }
       
       const { mode, type } = body; // mode: 'more'/'again', type: 'flower'/'seed'
-      console.log(`[PATCH /api/scan/${id}] Fetching Wikipedia images (type: ${type}, mode: ${mode}) for: ${scan.result.scientificName}`);
+      console.log(`[PATCH /api/scan/${id}] Fetching Wikipedia images (type: ${type}, mode: ${mode}) for: ${scan.result.scientificName || scan.result.commonName}`);
       
       const flagged = scan.result.flaggedImageUrls || [];
       let count = 0;

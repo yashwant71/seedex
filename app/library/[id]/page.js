@@ -252,39 +252,37 @@ export default function ScanDetail({ params }) {
 
   const isAnalyzing = scan.status === 'analyzing' || scan.status === 'pending';
 
-  // Build a list of all images for the carousel
+  // Build a list of all images for the carousel (without arbitrary limits, showing all fetched/stored images)
   const carouselImages = [];
+  const addedUrls = new Set();
+
   if (scan?.imageUrl) {
     carouselImages.push({ url: scan.imageUrl, label: '📷 Scanned Seed', type: 'scanned' });
+    addedUrls.add(scan.imageUrl);
   }
+
   if (scan?.status === 'complete' && scan.result) {
-    if (scan.result.flowerImageUrl) {
+    if (scan.result.flowerImageUrl && !addedUrls.has(scan.result.flowerImageUrl)) {
       carouselImages.push({ url: scan.result.flowerImageUrl, label: '🌸 Grown Plant', type: 'flower' });
+      addedUrls.add(scan.result.flowerImageUrl);
     }
-    // Reference seed images from the web (Max 3)
+
+    // Reference seed images from the web
     if (scan.result.seedImageUrls && Array.isArray(scan.result.seedImageUrls)) {
-      scan.result.seedImageUrls.slice(0, 3).forEach((url) => {
-        if (url !== scan.imageUrl) {
+      scan.result.seedImageUrls.forEach((url) => {
+        if (!addedUrls.has(url)) {
           carouselImages.push({ url, label: '🌱 Seed Reference', type: 'seed' });
+          addedUrls.add(url);
         }
       });
     }
-    // Other plant/flower images (Max 3 total flower images, including grown plant)
-    const mainFlowerUrl = scan.result.flowerImageUrl;
-    const maxAdditionalFlowers = mainFlowerUrl ? 2 : 3;
-    let addedFlowers = 0;
 
+    // Other plant/flower images
     if (scan.result.flowerImageUrls && Array.isArray(scan.result.flowerImageUrls)) {
       scan.result.flowerImageUrls.forEach((url) => {
-        // Skip duplicate of main flower, scanned seed, or seed reference URLs
-        if (
-          url !== mainFlowerUrl && 
-          url !== scan.imageUrl && 
-          (!scan.result.seedImageUrls || !scan.result.seedImageUrls.includes(url)) &&
-          addedFlowers < maxAdditionalFlowers
-        ) {
+        if (!addedUrls.has(url)) {
           carouselImages.push({ url, label: '🌸 Plant Photo', type: 'flower' });
-          addedFlowers++;
+          addedUrls.add(url);
         }
       });
     }
@@ -379,7 +377,7 @@ export default function ScanDetail({ params }) {
                 )}
               </div>
             ))}
-            {scan?.status === 'complete' && scan?.result?.scientificName && (
+            {scan?.status === 'complete' && (scan?.result?.scientificName || scan?.result?.commonName) && (
               <div 
                 className="detail-carousel-item"
                 style={{ 
