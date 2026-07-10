@@ -225,6 +225,9 @@ export async function PATCH(request, { params }) {
       return NextResponse.json(scan);
     }
 
+    // Extract manual name if provided in body
+    const manualName = body.manualName || null;
+
     // Reset status for rescan
     scan.status = 'analyzing';
     scan.error = null;
@@ -233,8 +236,8 @@ export async function PATCH(request, { params }) {
     // Safe background execution in Next.js 15
     after(async () => {
       try {
-        console.log(`[PATCH /api/scan/${id}] Initiating stable background AI rescan...`);
-        await rescanAndUpdate(id, scan.imageUrl);
+        console.log(`[PATCH /api/scan/${id}] Initiating stable background AI rescan${manualName ? ` for "${manualName}"` : ''}...`);
+        await rescanAndUpdate(id, scan.imageUrl, manualName);
       } catch (err) {
         console.error('[PATCH /api/scan] Rescan background task failed:', err);
       }
@@ -250,10 +253,10 @@ export async function PATCH(request, { params }) {
   }
 }
 
-async function rescanAndUpdate(scanId, imageUrl) {
+async function rescanAndUpdate(scanId, imageUrl, manualName = null) {
   try {
     await connectDB();
-    const result = await analyzeSeed(imageUrl);
+    const result = await analyzeSeed(imageUrl, manualName);
 
     const wikiImages = await getWikipediaImages(result.scientificName, result.commonName);
     const flowerImageUrl = wikiImages.length > 0 ? wikiImages[0] : '';

@@ -120,6 +120,34 @@ export default function ScanDetail({ params }) {
     }
   };
 
+  const handleManualRescan = async () => {
+    if (!checkAdminPassword()) return;
+    
+    const manualName = prompt('Enter the correct plant name to identify this seed (e.g. Lavender, Rose, Sunflower):');
+    if (!manualName || !manualName.trim()) return;
+
+    setRescanning(true);
+    try {
+      showToast(`Starting analysis for: "${manualName.trim()}"...`, 'success');
+      const response = await fetch(`/api/scan/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ manualName: manualName.trim() }),
+      });
+
+      if (response.ok) {
+        showToast('Seed identification updated. AI is re-analyzing...', 'success');
+        fetchScan();
+      } else {
+        throw new Error('Rescan failed');
+      }
+    } catch (error) {
+      showToast('Failed to identify plant. Try again.', 'error');
+    } finally {
+      setRescanning(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!checkAdminPassword()) return;
     if (!confirm('Delete this scan? This cannot be undone.')) return;
@@ -322,6 +350,13 @@ export default function ScanDetail({ params }) {
                 <>
                   <button
                     className="btn btn-secondary"
+                    onClick={handleManualRescan}
+                    disabled={rescanning}
+                  >
+                    ✏️ Identify Manually
+                  </button>
+                  <button
+                    className="btn btn-secondary"
                     onClick={handleRescan}
                     disabled={rescanning}
                   >
@@ -474,14 +509,24 @@ export default function ScanDetail({ params }) {
                 <p className="description" style={{ color: 'var(--danger)', fontSize: '0.95rem' }}>
                   {scan.error || 'Something went wrong during analysis.'}
                 </p>
-                <button
-                  className="btn btn-primary"
-                  onClick={handleRescan}
-                  disabled={rescanning}
-                  style={{ width: 'fit-content', marginTop: '8px' }}
-                >
-                  🔄 {rescanning ? 'Rescanning...' : 'Try Again'}
-                </button>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleRescan}
+                    disabled={rescanning}
+                    style={{ width: 'fit-content' }}
+                  >
+                    🔄 {rescanning ? 'Rescanning...' : 'Try Again'}
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={handleManualRescan}
+                    disabled={rescanning}
+                    style={{ width: 'fit-content', color: 'var(--text-primary)', borderColor: 'var(--border)' }}
+                  >
+                    ✏️ Identify Manually
+                  </button>
+                </div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
