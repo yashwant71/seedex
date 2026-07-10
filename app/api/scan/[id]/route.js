@@ -89,6 +89,142 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ id, status: 'failed', error: 'Analysis cancelled by user' });
     }
 
+    if (body.action === 'fetchImages') {
+      if (!scan.result || !scan.result.scientificName) {
+        return NextResponse.json({ error: 'Scan has no identified plant details yet' }, { status: 400 });
+      }
+      
+      const { mode, type } = body; // mode: 'more'/'again', type: 'flower'/'seed'
+      console.log(`[PATCH /api/scan/${id}] Fetching Wikipedia images (type: ${type}, mode: ${mode}) for: ${scan.result.scientificName}`);
+      
+      const flagged = scan.result.flaggedImageUrls || [];
+      let count = 0;
+
+      if (type === 'seed') {
+        const seedImages = await getWikipediaSeedImages(scan.result.scientificName, scan.result.commonName);
+        if (mode === 'more') {
+          if (!scan.result.seedImageUrls) scan.result.seedImageUrls = [];
+          seedImages.forEach(url => {
+            if (!scan.result.seedImageUrls.includes(url) && !flagged.includes(url)) {
+              scan.result.seedImageUrls.push(url);
+              count++;
+            }
+          });
+        } else {
+          scan.result.seedImageUrls = seedImages;
+          count = seedImages.length;
+        }
+      } else {
+        const wikiImages = await getWikipediaImages(scan.result.scientificName, scan.result.commonName);
+        if (mode === 'more') {
+          if (!scan.result.flowerImageUrls) scan.result.flowerImageUrls = [];
+          wikiImages.forEach(url => {
+            if (!scan.result.flowerImageUrls.includes(url) && !flagged.includes(url)) {
+              scan.result.flowerImageUrls.push(url);
+              count++;
+            }
+          });
+          if (scan.result.flowerImageUrls.length > 0 && !scan.result.flowerImageUrl) {
+            scan.result.flowerImageUrl = scan.result.flowerImageUrls[0];
+          }
+        } else {
+          scan.result.flowerImageUrls = wikiImages;
+          count = wikiImages.length;
+          if (wikiImages.length > 0) {
+            scan.result.flowerImageUrl = wikiImages[0];
+          } else {
+            scan.result.flowerImageUrl = '';
+          }
+        }
+      }
+      
+      await scan.save();
+      return NextResponse.json({ success: true, scan, count });
+    }
+
+    if (body.action === 'removeImage') {
+      const { imageUrl } = body;
+      if (!imageUrl) {
+        return NextResponse.json({ error: 'No imageUrl provided' }, { status: 400 });
+      }
+
+      // Filter out of flowerImageUrls
+      if (scan.result.flowerImageUrls) {
+        scan.result.flowerImageUrls = scan.result.flowerImageUrls.filter(u => u !== imageUrl);
+      }
+      // Filter out of seedImageUrls
+      if (scan.result.seedImageUrls) {
+        scan.result.seedImageUrls = scan.result.seedImageUrls.filter(u => u !== imageUrl);
+      }
+      // If it was the main flower image, set it to the next available or empty
+      if (scan.result.flowerImageUrl === imageUrl) {
+        scan.result.flowerImageUrl = scan.result.flowerImageUrls?.[0] || '';
+      }
+
+      await scan.save();
+      console.log(`[PATCH /api/scan/${id}] Removed image URL: ${imageUrl}`);
+      return NextResponse.json(scan);
+    }
+
+    if (body.action === 'flagImage') {
+      const { imageUrl, type } = body;
+      if (!imageUrl) {
+        return NextResponse.json({ error: 'No imageUrl provided' }, { status: 400 });
+      }
+
+      console.log(`[PATCH /api/scan/${id}] Flagging wrong image URL: ${imageUrl} (${type})`);
+
+      // 1. Remove from local lists
+      if (scan.result.flowerImageUrls) {
+        scan.result.flowerImageUrls = scan.result.flowerImageUrls.filter(u => u !== imageUrl);
+      }
+      if (scan.result.seedImageUrls) {
+        scan.result.seedImageUrls = scan.result.seedImageUrls.filter(u => u !== imageUrl);
+      }
+      if (scan.result.flowerImageUrl === imageUrl) {
+        scan.result.flowerImageUrl = scan.result.flowerImageUrls?.[0] || '';
+      }
+
+      // Add to flagged list
+      if (!scan.result.flaggedImageUrls) {
+        scan.result.flaggedImageUrls = [];
+      }
+      if (!scan.result.flaggedImageUrls.includes(imageUrl)) {
+        scan.result.flaggedImageUrls.push(imageUrl);
+      }
+
+      // 2. Fetch alternative new images
+      if (type === 'seed') {
+        const seedImages = await getWikipediaSeedImages(scan.result.scientificName, scan.result.commonName);
+        const newSeedImg = seedImages.find(u => 
+          u !== imageUrl && 
+          !scan.result.seedImageUrls?.includes(u) && 
+          !scan.result.flaggedImageUrls.includes(u)
+        );
+        if (newSeedImg) {
+          scan.result.seedImageUrls.push(newSeedImg);
+        }
+      } else {
+        const wikiImages = await getWikipediaImages(scan.result.scientificName, scan.result.commonName);
+        const newFlowerImg = wikiImages.find(u => 
+          u !== imageUrl && 
+          !scan.result.flowerImageUrls?.includes(u) && 
+          !scan.result.flaggedImageUrls.includes(u)
+        );
+        if (newFlowerImg) {
+          scan.result.flowerImageUrls.push(newFlowerImg);
+          if (!scan.result.flowerImageUrl) {
+            scan.result.flowerImageUrl = newFlowerImg;
+          }
+        }
+      }
+
+
+
+      await scan.save();
+      return NextResponse.json(scan);
+    }
+
     // Reset status for rescan
     scan.status = 'analyzing';
     scan.error = null;

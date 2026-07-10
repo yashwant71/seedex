@@ -1,0 +1,42 @@
+{
+  "google/gemma-4-31b-it:free": {
+    "successes": 0,
+    "rateLimits": 5,
+    "providerErrors": 0,
+    "validationErrors": 0,
+    "otherErrors": 0,
+    "lastUsed": "2026-07-10T03:59:49.520Z"
+  },
+  "google/gemma-4-26b-a4b-it:free": {
+    "successes": 0,
+    "rateLimits": 5,
+    "providerErrors": 0,
+    "validationErrors": 0,
+    "otherErrors": 0,
+    "lastUsed": "2026-07-10T03:59:56.972Z"
+  },
+  "nvidia/nemotron-nano-12b-v2-vl:free": {
+    "successes": 0,
+    "rateLimits": 0,
+    "providerErrors": 1,
+    "validationErrors": 0,
+    "otherErrors": 0,
+    "lastUsed": "2026-07-10T04:01:00.146Z"
+  },
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
+    "successes": 0,
+    "rateLimits": 0,
+    "providerErrors": 1,
+    "validationErrors": 0,
+    "otherErrors": 0,
+    "lastUsed": "2026-07-10T04:06:01.519Z"
+  },
+  "openrouter/free": {
+    "successes": 0,
+    "rateLimits": 0,
+    "providerErrors": 1,
+    "validationErrors": 0,
+    "otherErrors": 0,
+    "lastUsed": "2026-07-10T04:06:15.773Z"
+  }
+}

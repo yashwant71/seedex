@@ -6,6 +6,33 @@ import Link from 'next/link';
 import Navbar from '../../../components/Navbar';
 import PlantingInfo from '../../../components/PlantingInfo';
 
+function getImageNameFromUrl(url) {
+  if (!url) return '';
+  try {
+    const decoded = decodeURIComponent(url);
+    const fileName = decoded.substring(decoded.lastIndexOf('/') + 1);
+    const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+    
+    // Replace underscores, hyphens, and multiple spaces
+    let clean = nameWithoutExt.replace(/[_-]/g, ' ').replace(/\s+/g, ' ').trim();
+    
+    // Remove "File:" prefix if present
+    if (clean.toLowerCase().startsWith('file:')) {
+      clean = clean.substring(5).trim();
+    }
+    
+    // If it's a very long string, truncate it
+    if (clean.length > 28) {
+      clean = clean.substring(0, 26) + '...';
+    }
+    
+    // Capitalize first letter of each word
+    return clean.replace(/\b\w/g, c => c.toUpperCase());
+  } catch (e) {
+    return '';
+  }
+}
+
 export default function ScanDetail({ params }) {
   const { id } = use(params);
   const router = useRouter();
@@ -16,6 +43,7 @@ export default function ScanDetail({ params }) {
   const [deleting, setDeleting] = useState(false);
   const [zoomImage, setZoomImage] = useState(null);
   const [cancelling, setCancelling] = useState(false);
+  const [fetchingImages, setFetchingImages] = useState(null);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -136,6 +164,62 @@ export default function ScanDetail({ params }) {
     }
   };
 
+  const handleFetchImages = async (mode, type) => {
+    if (!checkAdminPassword()) return;
+    setFetchingImages(`${mode}-${type}`);
+    try {
+      const typeLabel = type === 'seed' ? 'seed reference images' : 'plant images';
+      showToast(mode === 'more' ? `Finding more ${typeLabel}...` : `Refetching all ${typeLabel}...`, 'success');
+      const response = await fetch(`/api/scan/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'fetchImages', mode, type }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const count = data.count || 0;
+        const typeLabel = type === 'seed' ? 'seed' : 'plant';
+        showToast(mode === 'more' ? `Found and added ${count} new ${typeLabel} images!` : `Found and reset to ${count} ${typeLabel} images!`, 'success');
+        fetchScan();
+      } else {
+        throw new Error('Failed to fetch images');
+      }
+    } catch (error) {
+      showToast('Failed to fetch images. Try again.', 'error');
+    } finally {
+      setFetchingImages(null);
+    }
+  };
+
+  const handleImageAction = async (actionType, url, type = 'flower') => {
+    if (!checkAdminPassword()) return;
+
+    try {
+      showToast(actionType === 'flag' ? 'Finding alternative image...' : 'Removing image...', 'success');
+      
+      const response = await fetch(`/api/scan/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: actionType === 'flag' ? 'flagImage' : 'removeImage',
+          imageUrl: url,
+          type: type
+        })
+      });
+
+      if (response.ok) {
+        showToast(actionType === 'flag' ? 'Image replaced!' : 'Image removed!', 'success');
+        setZoomImage(null);
+        fetchScan();
+      } else {
+        throw new Error('Image action failed');
+      }
+    } catch (error) {
+      showToast('Failed to modify image. Try again.', 'error');
+    }
+  };
+
   if (loading) {
     return (
       <>
@@ -171,30 +255,36 @@ export default function ScanDetail({ params }) {
   // Build a list of all images for the carousel
   const carouselImages = [];
   if (scan?.imageUrl) {
-    carouselImages.push({ url: scan.imageUrl, label: '📷 Scanned Seed' });
+    carouselImages.push({ url: scan.imageUrl, label: '📷 Scanned Seed', type: 'scanned' });
   }
   if (scan?.status === 'complete' && scan.result) {
     if (scan.result.flowerImageUrl) {
-      carouselImages.push({ url: scan.result.flowerImageUrl, label: '🌸 Grown Plant' });
+      carouselImages.push({ url: scan.result.flowerImageUrl, label: '🌸 Grown Plant', type: 'flower' });
     }
-    // Reference seed images from the web
+    // Reference seed images from the web (Max 3)
     if (scan.result.seedImageUrls && Array.isArray(scan.result.seedImageUrls)) {
       scan.result.seedImageUrls.slice(0, 3).forEach((url) => {
         if (url !== scan.imageUrl) {
-          carouselImages.push({ url, label: '🌱 Seed Reference' });
+          carouselImages.push({ url, label: '🌱 Seed Reference', type: 'seed' });
         }
       });
     }
-    // Other plant/flower images
+    // Other plant/flower images (Max 3 total flower images, including grown plant)
+    const mainFlowerUrl = scan.result.flowerImageUrl;
+    const maxAdditionalFlowers = mainFlowerUrl ? 2 : 3;
+    let addedFlowers = 0;
+
     if (scan.result.flowerImageUrls && Array.isArray(scan.result.flowerImageUrls)) {
       scan.result.flowerImageUrls.forEach((url) => {
-        // Skip duplicate of main flower or seed image
+        // Skip duplicate of main flower, scanned seed, or seed reference URLs
         if (
-          url !== scan.result.flowerImageUrl && 
+          url !== mainFlowerUrl && 
           url !== scan.imageUrl && 
-          (!scan.result.seedImageUrls || !scan.result.seedImageUrls.includes(url))
+          (!scan.result.seedImageUrls || !scan.result.seedImageUrls.includes(url)) &&
+          addedFlowers < maxAdditionalFlowers
         ) {
-          carouselImages.push({ url, label: '🌸 Plant Photo' });
+          carouselImages.push({ url, label: '🌸 Plant Photo', type: 'flower' });
+          addedFlowers++;
         }
       });
     }
@@ -261,8 +351,102 @@ export default function ScanDetail({ params }) {
               >
                 <img src={imgObj.url} alt={imgObj.label} />
                 <span className="detail-image-label">{imgObj.label}</span>
+                {imgObj.type !== 'scanned' && getImageNameFromUrl(imgObj.url) && (
+                  <span 
+                    className="detail-image-sublabel"
+                    style={{
+                      position: 'absolute',
+                      top: '12px',
+                      left: '12px',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      background: 'var(--bg-glass-strong)',
+                      backdropFilter: 'blur(8px)',
+                      WebkitBackdropFilter: 'blur(8px)',
+                      fontSize: '0.65rem',
+                      fontWeight: '500',
+                      color: 'var(--text-secondary)',
+                      border: '1px solid var(--border)',
+                      pointerEvents: 'none',
+                      maxWidth: '80%',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}
+                  >
+                    {getImageNameFromUrl(imgObj.url)}
+                  </span>
+                )}
               </div>
             ))}
+            {scan?.status === 'complete' && scan?.result?.scientificName && (
+              <div 
+                className="detail-carousel-item"
+                style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  justifyContent: 'center', 
+                  alignItems: 'stretch', 
+                  border: '2px dashed var(--border)',
+                  padding: '12px 16px',
+                  boxSizing: 'border-box',
+                  gap: '8px',
+                  cursor: 'default',
+                  transform: 'none',
+                  boxShadow: 'none'
+                }}
+              >
+                {/* Plant Section */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                    🌸 Plant Photos
+                  </span>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => handleFetchImages('more', 'flower')}
+                      disabled={!!fetchingImages}
+                      style={{ fontSize: '0.72rem', padding: '6px 8px', flex: 1 }}
+                    >
+                      {fetchingImages === 'more-flower' ? '...' : '➕ More'}
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => handleFetchImages('again', 'flower')}
+                      disabled={!!fetchingImages}
+                      style={{ fontSize: '0.72rem', padding: '6px 8px', flex: 1, color: 'var(--text-primary)', borderColor: 'var(--border)' }}
+                    >
+                      {fetchingImages === 'again-flower' ? '...' : '🔄 Refetch'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Seed Section */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                    🌱 Seed Reference
+                  </span>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => handleFetchImages('more', 'seed')}
+                      disabled={!!fetchingImages}
+                      style={{ fontSize: '0.72rem', padding: '6px 8px', flex: 1 }}
+                    >
+                      {fetchingImages === 'more-seed' ? '...' : '➕ More'}
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => handleFetchImages('again', 'seed')}
+                      disabled={!!fetchingImages}
+                      style={{ fontSize: '0.72rem', padding: '6px 8px', flex: 1, color: 'var(--text-primary)', borderColor: 'var(--border)' }}
+                    >
+                      {fetchingImages === 'again-seed' ? '...' : '🔄 Refetch'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             {isAnalyzing && (
               <div className="detail-carousel-item">
                 <div className="loading-container" style={{ height: '100%', padding: '0', display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-secondary)' }}>
@@ -359,8 +543,32 @@ export default function ScanDetail({ params }) {
           <div className="lightbox-modal" onClick={(e) => e.stopPropagation()}>
             <button className="lightbox-close" onClick={() => setZoomImage(null)}>✕</button>
             <img src={zoomImage.url} alt="Zoomed view" className="lightbox-image" />
-            <div className="lightbox-caption">{zoomImage.label}</div>
+            <div className="lightbox-caption">
+              {zoomImage.label}
+              {zoomImage.type !== 'scanned' && getImageNameFromUrl(zoomImage.url) && (
+                <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px', fontStyle: 'italic' }}>
+                  ({getImageNameFromUrl(zoomImage.url)})
+                </span>
+              )}
+            </div>
             <div className="lightbox-actions">
+              {zoomImage.type !== 'scanned' && (
+                <button
+                  onClick={() => handleImageAction('flag', zoomImage.url, zoomImage.type)}
+                  className="btn btn-secondary"
+                  style={{ color: '#fb923c', borderColor: 'rgba(251, 146, 60, 0.2)' }}
+                >
+                  ⚠️ Flag Wrong Image
+                </button>
+              )}
+              {zoomImage.type !== 'scanned' && (
+                <button
+                  onClick={() => handleImageAction('remove', zoomImage.url)}
+                  className="btn btn-danger"
+                >
+                  🗑️ Remove Image
+                </button>
+              )}
               {zoomImage.label !== '📷 Scanned Seed' && (
                 <a
                   href={`https://lens.google.com/uploadbyurl?url=${encodeURIComponent(zoomImage.url)}`}
