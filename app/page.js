@@ -15,7 +15,28 @@ export default function Home() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  const checkAdminPassword = () => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('admin_password');
+      if (saved === 'Yash123@') {
+        return true;
+      }
+    }
+
+    const input = prompt('Enter admin password to proceed:');
+    if (input === 'Yash123@') {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('admin_password', 'Yash123@');
+      }
+      return true;
+    } else {
+      alert('Incorrect password. Access denied.');
+      return false;
+    }
+  };
+
   const handleCapture = async (imageData) => {
+    if (!checkAdminPassword()) return;
     setIsUploading(true);
 
     try {

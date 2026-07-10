@@ -81,6 +81,24 @@ export default function Library() {
       <main>
         <div className="library-container" style={{ paddingTop: '24px' }}>
           
+          {/* Library Header */}
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'baseline', 
+            marginBottom: '20px',
+            borderBottom: '1px solid var(--border)',
+            paddingBottom: '12px'
+          }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>
+              Botanical Library
+            </h1>
+            <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+              {filteredScans.length} {filteredScans.length === 1 ? 'plant' : 'plants'}
+              {scans.length !== filteredScans.length && ` (from ${scans.length} total)`}
+            </span>
+          </div>
+
           {/* Library Controls Toolbar */}
           <div style={{ 
             display: 'flex', 
